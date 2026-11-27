@@ -337,7 +337,11 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory); // menu bar only, no Dock icon
 
-            let data_dir = app.path().app_data_dir()?;
+            // JUMP_DATA_DIR points at another folder (used for demo screenshots).
+            let data_dir = match std::env::var("JUMP_DATA_DIR") {
+                Ok(dir) => std::path::PathBuf::from(dir),
+                Err(_) => app.path().app_data_dir()?,
+            };
             app.manage(AppState {
                 store: Mutex::new(Store::load(data_dir)),
                 bindings: Mutex::new(HashMap::new()),
@@ -388,6 +392,16 @@ pub fn run() {
                         let _ = panel.eval("document.querySelectorAll('.g-head')[2].click()");
                     });
                 }
+            }
+            // Screenshot helpers: JUMP_THEME=dark|light, JUMP_EXPAND_GROUP=<index> (expands that group).
+            if let Ok(theme) = std::env::var("JUMP_THEME") {
+                app.set_theme(Some(if theme == "dark" { tauri::Theme::Dark } else { tauri::Theme::Light }));
+            }
+            if let (Ok(index), Some(panel)) = (std::env::var("JUMP_EXPAND_GROUP"), app.get_webview_window("panel")) {
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(1500));
+                    let _ = panel.eval(&format!("document.querySelectorAll('.g-head')[{index}]?.click()"));
+                });
             }
             if std::env::var("JUMP_OPEN_EDITOR").is_ok() {
                 open_editor_window(app.handle(), None);
